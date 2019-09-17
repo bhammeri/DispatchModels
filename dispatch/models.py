@@ -4,6 +4,12 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 
+from .fields import CompressedJSONField
+from .utils import to_dict
+
+class CompressedJSONModel(models.Model):
+    value = CompressedJSONField(null=False, default=b'')
+
 
 # Create your models here.
 class ThermalPlant(models.Model):
@@ -74,7 +80,11 @@ class ThermalPlant(models.Model):
         self.UPwarm_time = self.warm_start_within_timedelta
         self.DW_cost = self.shutdown_costs * self.capacity
 
-        super().save(*args, **kwargs)  # Call the "real" save() method.
+        # Call the "real" save() method.
+        super().save(*args, **kwargs)
+
+    def to_dict(self):
+        return to_dict(self)
 
 
 class TimeSeriesIndex(models.Model):
@@ -125,7 +135,7 @@ class TimeSeries(models.Model):
     description = models.TextField(default='') #
 
     index = models.ForeignKey(TimeSeriesIndex, on_delete=models.CASCADE)   # self reference
-    data = models.BinaryField(null=False, default=b'') # list of values, maybe binary and zipped
+    data = CompressedJSONField(null=False, default=b'') # list of values, maybe binary and zipped
     length = models.IntegerField(null=False, default=0) # store length of data, to be able to easily create index
 
     pub_date = models.DateTimeField('date published', auto_now_add=True, null=False)

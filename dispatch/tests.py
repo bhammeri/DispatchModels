@@ -6,32 +6,46 @@ from django.utils import timezone
 from django.urls import reverse
 from django.contrib.auth.models import User
 
-from .models import TimeSeries, TimeSeriesIndex, ThermalPlant
+from .models import TimeSeries, TimeSeriesIndex, ThermalPlant, CompressedJSONModel
 from .utils import to_dict
+
+
+class CompressedJSONModelTests(TestCase):
+    def test_create_field(self):
+        # create list of values to store
+        value = [item for item in range(10)]
+
+        # create and save
+        instance = CompressedJSONModel.objects.create(value=value)
+        instance.save()
+
+        # retrieve from db
+        retrieved_instance = CompressedJSONModel.objects.get()
+
+        self.assertEqual(value, retrieved_instance.value)
+
 
 # ThermalPlantTests
 def create_thermal_plant(user):
-    d = {}
-
-    d['user'] = user
-    d['capacity'] = 100
-    d['efficiency'] = 0.5
-    d['MIN_prod_fraction'] = 0.2
-    d['SEL_prod_fraction'] = 0.8
-    d['MEL_prod_fraction'] = 1.0
-    d['ramping_rate_BSE'] = 0
-    d['ramping_rate_RMP'] = 0.025
-    d['ramping_rate_NRM'] = 0.1
-    d['ramping_costs_BSE'] = 30
-    d['ramping_costs_RMP'] = 25
-    d['ramping_costs_NRM'] = 20
-    d['depreciation'] = 2
-    d['shutdown_costs'] = 0
-    d['hot_start_costs'] = 20
-    d['warm_start_costs'] = 21
-    d['cold_start_costs'] = 22
-    d['hot_start_within_timedelta'] = 3
-    d['warm_start_within_timedelta'] = 12
+    d = {'user': user,
+         'capacity': 100,
+         'efficiency': 0.5,
+         'MIN_prod_fraction': 0.2,
+         'SEL_prod_fraction': 0.8,
+         'MEL_prod_fraction': 1.0,
+         'ramping_rate_BSE': 0,
+         'ramping_rate_RMP': 0.025,
+         'ramping_rate_NRM': 0.1,
+         'ramping_costs_BSE': 30,
+         'ramping_costs_RMP': 25,
+         'ramping_costs_NRM': 20,
+         'depreciation': 2,
+         'shutdown_costs': 0,
+         'hot_start_costs': 20,
+         'warm_start_costs': 21,
+         'cold_start_costs': 22,
+         'hot_start_within_timedelta': 3,
+         'warm_start_within_timedelta': 12}
 
     thermal_plant = ThermalPlant.objects.create(**d)
 
@@ -51,7 +65,7 @@ class ThermalPlantTests(TestCase):
 
         plant = create_thermal_plant(user)
 
-        plant_dict = to_dict(plant)
+        plant_dict = plant.to_dict()
 
         print(plant_dict)
 
