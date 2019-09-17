@@ -6,8 +6,35 @@ from django.utils import timezone
 from django.urls import reverse
 from django.contrib.auth.models import User
 
-from .models import TimeSeries, TimeSeriesIndex, ThermalPlant, CompressedJSONModel
+from .models import TimeSeries, TimeSeriesIndex, ThermalPlant, CompressedJSONModel, ThermalPlantDispatch
 from .utils import to_dict
+
+
+def create_dummy_time_series_data(length):
+    index = [item for item in range(length)]
+    price = list(15+7*np.random.rand(length))
+    clear_fuel_price = list(30+7*np.random.rand(length))
+
+    return index, price, clear_fuel_price
+
+
+class ThermalPlantDispatchTests(TestCase):
+    def test_create_thermal_plant_dispatch_instance(self):
+        # create dummy user
+        user = create_dummy_user()
+
+        # create time series data
+        index, wholesale_price, clear_fuel_price = create_dummy_time_series_data(10)
+
+        print(index, wholesale_price, clear_fuel_price)
+
+        # create dummy plant
+        plant = create_thermal_plant(user)
+
+        # dummy instance
+        model_instance = ThermalPlantDispatch()
+
+        model_instance.time_series_index = [1,2,3,4,5,6]
 
 
 class CompressedJSONModelTests(TestCase):
@@ -17,7 +44,6 @@ class CompressedJSONModelTests(TestCase):
 
         # create and save
         instance = CompressedJSONModel.objects.create(value=value)
-        instance.save()
 
         # retrieve from db
         retrieved_instance = CompressedJSONModel.objects.get()

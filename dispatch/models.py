@@ -1,4 +1,5 @@
 import numpy as np
+import datetime
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -153,6 +154,43 @@ class TimeSeries(models.Model):
         return result
 
 
+def create_thermal_plant_dispatch_model(version, plant, wholesale_price, clean_fuel_price, time_series_index, pk=None):
+    """
+    Create instance or edit it if pk is provided.
+    :param version:
+    :param plant:
+    :param wholesale_price:
+    :param clean_fuel_price:
+    :param time_series_index:
+    :param pk:
+    :return:
+    """
+    if pk is None:
+        model_instance = ThermalPlantDispatch()
+
+    else:
+        #todo: maybe use get_object_or_404
+        model_instance = ThermalPlantDispatch.objects.get(pk=pk)
+
+    # create time series index if it doesn't exist already
+    if len(time_series_index) == 0:
+        # todo: raise error
+        pass
+
+    def is_integer_index(index):
+        return type(index[0]) == int
+
+    def is_datetime_index(index):
+        return (type(index[0]) == datetime.datetime) or (type[index[0]] == np.datetime64)
+
+    check_type_of_index = {
+        'integer': is_integer_index,
+        'datetime': is_datetime_index
+    }
+
+    for
+
+
 class ThermalPlantDispatch(models.Model):
     # todo: maybe call differently to reflect purpose of Object. ThermalPlantDispatchSetup
     """
@@ -171,3 +209,18 @@ class ThermalPlantDispatch(models.Model):
     time_series_index = models.ForeignKey(TimeSeriesIndex, on_delete=models.CASCADE)
 
     # todo: make sure that all time series use the same TimeSeriesIndex
+
+    def save(self, *args, **kwargs):
+        """
+
+        :return:
+        """
+
+        # prepare all the foreign relationship if the model is saved the first time
+        print(self.pk)
+        if self.pk is None:
+            print('here')
+
+
+        # Call the "real" save() method.
+        super().save(*args, **kwargs)
