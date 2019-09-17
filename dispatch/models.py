@@ -93,8 +93,8 @@ class TimeSeriesIndex(models.Model):
     Indexes are UTC encoded series of date times.
     """
     INDEX_TYPE_CHOICES = (
-        (1, _('integer index')),
-        (2, _('datetime index')),
+        (1, _('integer')),
+        (2, _('datetime')),
     )
 
     index_type = models.IntegerField(choices=INDEX_TYPE_CHOICES, default=1, blank=False)
@@ -128,6 +128,91 @@ class TimeSeriesIndex(models.Model):
             result = self.datetime_start + self.datetime_interval * result
 
         return result
+
+    def _convert_data_index_to_model(self, index):
+        if len(index) == 0:
+            #todo: raise error
+            assert len(index) > 0
+
+        def is_integer_index(index):
+            return type(index[0]) == int
+
+        def is_datetime_index(index):
+            return (type(index[0]) == datetime.datetime) or (type(index[0]) == np.datetime64)
+
+        index_type = None
+        index_types = {
+            'integer': is_integer_index,
+            'datetime': is_datetime_index
+        }
+
+        for t, f in index_types.items():
+            if f(index):
+                index_type = t
+
+        # assuming that index is ordered
+        start = index[0]
+
+        # assuming that index is ordered and have equidistant spacing
+        interval = -1
+        if len(index) > 1:
+            interval = index[1] - index[0]
+
+        result = {
+            'index_type': None,
+            'integer_offset': None,
+            'datetime_start': None,
+            'datetime_interval': None
+        }
+
+        if index_type == 'integer':
+            result['index_type'] = 1
+            result['integer_offset'] = start
+
+        elif index_type == 'datetime':
+            result['index_type'] = 2
+            result['datetime_start'] = start
+            result['datetime_interval'] = interval
+
+        return result
+
+    def create_from_data(self, index):
+        """
+        Assumes index is ordered.
+        :param index:
+        :return:
+        """
+
+        index_dict = self._convert_data_index_to_model(index)
+
+        self.index_type = index_dict['index_type']
+        if index_dict['index_type'] == 1:
+            self.integer_offset = index_dict['integer_offset']
+
+        elif index_dict['index_type'] == 2:
+            self.datetime_start = index_dict['datetime_start']
+            self.datetime_interval = index_dict['datetime_interval']
+
+        return self
+
+    def does_exist(self, index):
+        """
+        Looks up if an index representation for a data index already exist.
+        :param index:
+        :return: Model instance of TimeSeriesIndex if exists
+        """
+
+        index_dict = self._convert_data_index_to_model(index)
+
+        index_dict = {key:value for (key, value) in index_dict.items() if value is not None}
+
+        # delete None
+        try:
+            model_instance = TimeSeriesIndex.objects.get(**index_dict)
+            return model_instance
+
+        except TimeSeriesIndex.DoesNotExist:
+            return None
 
 
 class TimeSeries(models.Model):
@@ -188,7 +273,6 @@ def create_thermal_plant_dispatch_model(version, plant, wholesale_price, clean_f
         'datetime': is_datetime_index
     }
 
-    for
 
 
 class ThermalPlantDispatch(models.Model):

@@ -108,9 +108,15 @@ def create_time_series_index(start, interval):
     return TimeSeriesIndex.objects.create(index_type=2, datetime_start=start, datetime_interval=interval)
 
 
-def create_integer_index(offset):
+def create_integer_time_series_index(offset):
     return TimeSeriesIndex.objects.create(index_type=1, integer_offset=offset)
 
+def create_datetime_index(length):
+    start = datetime.datetime(1990, 1, 1, 0, tzinfo=datetime.timezone.utc)
+    interval = datetime.timedelta(hours=1)
+    length = 10
+    expected_result = start + interval * np.arange(length)
+    return expected_result
 
 def create_time_series(name, length, user, time_series_index, data=b''):
     obj = TimeSeries.objects.create(
@@ -122,6 +128,59 @@ def create_time_series(name, length, user, time_series_index, data=b''):
     )
 
     return obj
+
+
+class TimeSeriesIndexTests(TestCase):
+    def test_create_time_series_index_from_integer_index(self):
+        length = 10
+        index, price, fuel_price = create_dummy_time_series_data(length)
+
+        time_series_index = TimeSeriesIndex()
+
+        time_series_index.create_from_data(index)
+
+        time_series_index.save()
+
+        retrieved_time_series = TimeSeriesIndex.objects.get(pk=1)
+
+        created_index = retrieved_time_series.create_index(length)
+
+        self.assertIs(all(index == created_index), True)
+
+    def test_create_time_series_index_from_datetime_index(self):
+        length = 10
+        index = create_datetime_index(length)
+
+        time_series_index = TimeSeriesIndex()
+
+        time_series_index.create_from_data(index)
+
+        time_series_index.save()
+
+        retrieved_time_series = TimeSeriesIndex.objects.get(pk=1)
+
+        created_index = retrieved_time_series.create_index(length)
+
+        self.assertIs(all(index == created_index), True)
+
+    def test_time_series_index_does_exist(self):
+        length = 10
+        index = create_datetime_index(length)
+
+        time_series_index = TimeSeriesIndex()
+
+        time_series_index.create_from_data(index)
+
+        time_series_index.save()
+
+        # new instance
+        time_series_index = TimeSeriesIndex()
+
+        time_series_index = time_series_index.does_exist(index)
+
+        created_index = time_series_index.create_index(length)
+
+        self.assertIs(all(index == created_index), True)
 
 
 class TimeSeriesTests(TestCase):
@@ -158,7 +217,7 @@ class TimeSeriesTests(TestCase):
         length = 10
         expected_result = offset + np.arange(length)
 
-        integer_index = create_integer_index(offset)
+        integer_index = create_integer_time_series_index(offset)
 
         time_series = create_time_series('test', length, user, integer_index)
 
