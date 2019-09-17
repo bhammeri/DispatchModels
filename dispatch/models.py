@@ -5,11 +5,9 @@ from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 
 
-
-
 # Create your models here.
 class ThermalPlant(models.Model):
-    # todo: toask: What does BSE, RMP, NRM, stand for?
+    # todo: toask: What does BSE, RMP, NRM, UPwarm, depreciation ... stand for?
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
     # production
@@ -20,85 +18,63 @@ class ThermalPlant(models.Model):
     MEL_prod_fraction = models.FloatField(blank=False, verbose_name='Maximal Export Limit production fraction [0-1]')
 
     # ramping
-    ramping_rate_BSE = models.Floatfield(blank=False, verbose_name='Ramping Rate BSE')
+    ramping_rate_BSE = models.FloatField(blank=False, verbose_name='Ramping Rate BSE')
     ramping_rate_RMP = models.FloatField(blank=False, verbose_name='Ramping Rate RMP')
     ramping_rate_NRM = models.FloatField(blank=False, verbose_name='Ramping Rate NRM')
 
-    ramping_costs_BSE = models.FloatField(blank=False, verbose_name='Ramping Costs BSE')
-    ramping_costs_RMP = models.FloatField(blank=False, verbose_name='Ramping Costs RMP')
-    ramping_costs_NRM = models.FloatField(blank=False, verbose_name='Ramping Costs NRM')
+    ramping_costs_BSE = models.FloatField(blank=False, verbose_name='Ramping Costs BSE [0-1]')
+    ramping_costs_RMP = models.FloatField(blank=False, verbose_name='Ramping Costs RMP [0-1]')
+    ramping_costs_NRM = models.FloatField(blank=False, verbose_name='Ramping Costs NRM [0-1]')
 
     # costs
     depreciation = models.FloatField(blank=False, verbose_name='???')
     shutdown_costs = models.FloatField(blank=False, verbose_name='Costs of Shutdown [EUR/MW]')
+    hot_start_costs = models.FloatField(blank=False, verbose_name='Costs of Hot Start [EUR/MW]')
     warm_start_costs = models.FloatField(blank=False, verbose_name='Costs of Warm Start [EUR/MW]')
     cold_start_costs = models.FloatField(blank=False, verbose_name='Costs of Cold Start [EUR/MW]')
+
     # start / stop
-    hot_start_within_timedelta = models.Floatfield(blank=False, verbose_name='Start counts as hot start if happening within X hours.')
+    hot_start_within_timedelta = models.FloatField(blank=False, verbose_name='Start counts as hot start if happening within X hours.')
     warm_start_within_timedelta = models.FloatField(blank=False, verbose_name='Start counts as warm start if happening within X hours.')
 
     # derived characteristics
-    ramping_rate_MW_BSE  # (x, y * self.MW_installed)
-    ...
+    # implementation as functions?
+    # todo: as a lot of values are just scaled by the capacity, maybe one can use dynamic methods that check if the
+    # attribute doesn't exist if the attribute is a existing attribute + _MW in the end and then returns the value scaled
+    # by the capacity. (Maybe not worth the effort as the plant models should stay fairly constant)
+    ramping_rate_BSE_MW = models.FloatField(blank=False, verbose_name='Ramping Rate BSE [MW/time]')
+    ramping_rate_RMP_MW = models.FloatField(blank=False, verbose_name='Ramping Rate RMP [MW/time]')
+    ramping_rate_NRM_MW = models.FloatField(blank=False, verbose_name='Ramping Rate NRM [MW/time]')
+    consumption = models.FloatField(blank=False, verbose_name='Consumption/Input [MW]')
+    depreciation_MW = models.FloatField(blank=False, verbose_name='Depreciation of ??? [EUR/MW]')
+    MIN = models.FloatField(blank=False, verbose_name='Minimal export limit [MW]')
+    SEL = models.FloatField(blank=False, verbose_name='Stable export limit [MW]')
+    MEL = models.FloatField(blank=False, verbose_name='Maximal export limit [MW]')
+    UPhot_cost = models.FloatField(blank=False, verbose_name='UPhot_cost')
+    UPwarm_cost = models.FloatField(blank=False, verbose_name='UPwarm_cost')
+    UPcold_cost = models.FloatField(blank=False, verbose_name='UPcold_cost')
+    UPhot_time = models.FloatField(blank=False, verbose_name='UPhot_time')
+    UPwarm_time = models.FloatField(blank=False, verbose_name='UPwarm_time')
+    DW_cost = models.FloatField(blank=False, verbose_name='DW_cost')
 
-    self_consumption    # self.n_consumption = self.MW_installed / self.n_efficiency
-    depreciation_MW     # self.depriciation = depriciation * self.MW_installed
+    def save(self, *args, **kwargs):
+        # create derived fields
+        self.ramping_rate_BSE_MW = self.ramping_rate_BSE * self.capacity
+        self.ramping_rate_RMP_MW = self.ramping_rate_RMP * self.capacity
+        self.ramping_rate_NRM_MW = self.ramping_rate_NRM * self.capacity
+        self.consumption = self.capacity / self.efficiency
+        self.depreciation_MW = self.depreciation * self.capacity
+        self.MIN = self.MIN_prod_fraction * self.capacity
+        self.SEL = self.SEL_prod_fraction * self.capacity
+        self.MEL = self.MEL_prod_fraction * self.capacity
+        self.UPhot_cost = self.hot_start_costs * self.capacity
+        self.UPwarm_cost = self.warm_start_costs * self.capacity
+        self.UPcold_cost = self.cold_start_costs * self.capacity
+        self.UPhot_time = self.hot_start_within_timedelta
+        self.UPwarm_time = self.warm_start_within_timedelta
+        self.DW_cost = self.shutdown_costs * self.capacity
 
-    self.MIN = MIN_fraction * self.MW_installed
-    self.SEL = SEL_fraction * self.MW_installed
-    self.MEL = MEL_fraction * self.MW_installed
-
-    self.UPhot_cost = hot_start_cost * self.MW_installed
-    self.UPwarm_cost = warm_start_cost * self.MW_installed
-    self.UPcold_cost = cold_start_cost * self.MW_installed
-
-    self.UPhot_time = hotStartWithinTime ???
-    self.UPwarm_time = warmStartWithinTime ???
-    self.DW_cost = shutdown_cost * self.MW_installed
-
-class Plant:
-    def __init__(self,
-                 MW_installed,
-                 efficiency,
-                 rampingRates,
-                 rampingCosts,
-                 MIN_fraction,
-                 SEL_fraction,
-                 MEL_fraction,
-
-                 depriciation,
-                 shutdown_cost,
-                 hot_start_cost,
-                 warm_start_cost,
-                 cold_start_cost,
-                 hotStartWithinTime,
-                 warmStartWithinTime,
-                 ):
-        self.MW_installed = MW_installed
-
-        self.n_efficiency = efficiency
-
-        self.n_production = self.MW_installed
-        self.n_consumption = self.MW_installed / self.n_efficiency
-
-        rampingRates.update((x, y * self.MW_installed) for x, y in rampingRates.items())
-        self.rampingRates = rampingRates
-
-        self.rampingCosts = rampingCosts
-
-        self.depriciation = depriciation * self.MW_installed
-
-        self.MIN = MIN_fraction * self.MW_installed
-        self.SEL = SEL_fraction * self.MW_installed
-        self.MEL = MEL_fraction * self.MW_installed
-
-        self.UPhot_cost = hot_start_cost * self.MW_installed
-        self.UPwarm_cost = warm_start_cost * self.MW_installed
-        self.UPcold_cost = cold_start_cost * self.MW_installed
-
-        self.UPhot_time = hotStartWithinTime
-        self.UPwarm_time = warmStartWithinTime
-        self.DW_cost = shutdown_cost * self.MW_installed
+        super().save(*args, **kwargs)  # Call the "real" save() method.
 
 
 class TimeSeriesIndex(models.Model):
@@ -115,6 +91,8 @@ class TimeSeriesIndex(models.Model):
     # datetime index
     datetime_start = models.DateTimeField(null=True)
     datetime_interval = models.DurationField(null=True)
+
+    # todo: time index (just as time_start, time_interval instead of datetime)
 
     # integer index
     integer_offset = models.IntegerField(null=True, default=0)  # integer offset
@@ -166,6 +144,7 @@ class TimeSeries(models.Model):
 
 
 class ThermalPlantDispatch(models.Model):
+    # todo: maybe call differently to reflect purpose of Object. ThermalPlantDispatchSetup
     """
     The setup for a thermal plant dispatch simulation.
     """

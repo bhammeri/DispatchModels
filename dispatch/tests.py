@@ -6,7 +6,56 @@ from django.utils import timezone
 from django.urls import reverse
 from django.contrib.auth.models import User
 
-from .models import TimeSeries, TimeSeriesIndex
+from .models import TimeSeries, TimeSeriesIndex, ThermalPlant
+from .utils import to_dict
+
+# ThermalPlantTests
+def create_thermal_plant(user):
+    d = {}
+
+    d['user'] = user
+    d['capacity'] = 100
+    d['efficiency'] = 0.5
+    d['MIN_prod_fraction'] = 0.2
+    d['SEL_prod_fraction'] = 0.8
+    d['MEL_prod_fraction'] = 1.0
+    d['ramping_rate_BSE'] = 0
+    d['ramping_rate_RMP'] = 0.025
+    d['ramping_rate_NRM'] = 0.1
+    d['ramping_costs_BSE'] = 30
+    d['ramping_costs_RMP'] = 25
+    d['ramping_costs_NRM'] = 20
+    d['depreciation'] = 2
+    d['shutdown_costs'] = 0
+    d['hot_start_costs'] = 20
+    d['warm_start_costs'] = 21
+    d['cold_start_costs'] = 22
+    d['hot_start_within_timedelta'] = 3
+    d['warm_start_within_timedelta'] = 12
+
+    thermal_plant = ThermalPlant.objects.create(**d)
+
+    return thermal_plant
+
+
+class ThermalPlantTests(TestCase):
+    def test_creation(self):
+        user = create_dummy_user()
+
+        plant = create_thermal_plant(user)
+
+        self.assertIs(plant.MIN == plant.capacity * plant.MIN_prod_fraction, True)
+
+    def test_conversion_to_dictionary(self):
+        user = create_dummy_user()
+
+        plant = create_thermal_plant(user)
+
+        plant_dict = to_dict(plant)
+
+        print(plant_dict)
+
+        # todo: what to test here? that all fields are there? that they have certain values?
 
 
 # Create your tests here.
