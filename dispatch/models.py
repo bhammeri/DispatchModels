@@ -1,9 +1,11 @@
 import numpy as np
 import datetime
+import pandas as pd
 
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
+from django.db.models.fields.related import RelatedField
 
 from .fields import CompressedJSONField
 from .utils import to_dict
@@ -214,6 +216,14 @@ class TimeSeriesIndex(models.Model):
         except TimeSeriesIndex.DoesNotExist:
             return None
 
+    def create_if_not_exists(self, index):
+        result = self.does_exist(index)
+
+        if result is not None:
+            return result
+        else:
+            return self.create_from_data(index)
+
 
 class TimeSeries(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE) # reference to creat
@@ -223,6 +233,7 @@ class TimeSeries(models.Model):
     index = models.ForeignKey(TimeSeriesIndex, on_delete=models.CASCADE)   # self reference
     data = CompressedJSONField(null=False, default=b'') # list of values, maybe binary and zipped
     length = models.IntegerField(null=False, default=0) # store length of data, to be able to easily create index
+    unit = models.CharField(max_length=124, default='')
 
     pub_date = models.DateTimeField('date published', auto_now_add=True, null=False)
     last_altered = models.DateTimeField('date altered', auto_now=True, null=False)
@@ -238,18 +249,55 @@ class TimeSeries(models.Model):
 
         return result
 
+    def create_from_data(self, user, data, index=None):
+        """
+        Create from data.
+        :param data:
+        :param index:
+        :return:
+        """
 
-def create_thermal_plant_dispatch_model(version, plant, wholesale_price, clean_fuel_price, time_series_index, pk=None):
+        # todo: write test
+
+        # if no index is given create an integer index
+        if index is None:
+            index = [item for item in range(len(data))]
+
+        # create index if it does not exist already
+        time_series_index = TimeSeriesIndex().create_if_not_exists(index)
+
+    def to_dataframe(self):
+        """
+        Return a dataframe with index.
+        :return:
+        """
+
+        # todo: write test
+
+        index = self.create_index()
+
+        df = pd.DataFrame({'index': index, self.name: self.data})
+
+        df.set_index('index', inplace=True)
+
+        return df
+
+
+def create_thermal_plant_dispatch_model(user, version, plant_definition, time_series_index_data, wholesale_price, clean_fuel_price, pk=None):
     """
     Create instance or edit it if pk is provided.
     :param version:
-    :param plant:
+    :param plant_definition: Dictionary containing all information about a plant definition.
     :param wholesale_price:
     :param clean_fuel_price:
     :param time_series_index:
     :param pk:
     :return:
     """
+    # todo: function needs to be able to receive raw definitions/data or pks of already created objects. create asserts
+
+    assert len(time_series_index_data) == len(wholesale_price) == len(clean_fuel_price), 'Time series data and index must have the same length.'
+
     if pk is None:
         model_instance = ThermalPlantDispatch()
 
@@ -258,21 +306,61 @@ def create_thermal_plant_dispatch_model(version, plant, wholesale_price, clean_f
         model_instance = ThermalPlantDispatch.objects.get(pk=pk)
 
     # create time series index if it doesn't exist already
-    if len(time_series_index) == 0:
-        # todo: raise error
-        pass
+    time_series_index = TimeSeriesIndex().create_if_not_exists(time_series_index_data)
+    time_series_index.save()
 
-    def is_integer_index(index):
-        return type(index[0]) == int
+    print(time_series_index.pk)
 
-    def is_datetime_index(index):
-        return (type(index[0]) == datetime.datetime) or (type[index[0]] == np.datetime64)
+    # create the two time series
+    # 1. wholesale price
+    wholesale_price_time_series = TimeSeries.objects.create(
+        user=user,
+        name='wholesale_price',
+        description='',
+        index=time_series_index,
+        data=wholesale_price,
+        length=len(wholesale_price),
+        unit='EUR/MWh',
+    )
 
-    check_type_of_index = {
-        'integer': is_integer_index,
-        'datetime': is_datetime_index
-    }
+    print('wholesale_price_time_series', wholesale_price_time_series.pk)
 
+    # 2. clean fuel price
+    clean_fuel_price_time_series = TimeSeries.objects.create(
+        user=user,
+        name='clean_fuel_price',
+        description='',
+        index=time_series_index,
+        data=clean_fuel_price,
+        length=len(clean_fuel_price),
+        unit='EUR/MWh_thermal',
+    )
+
+    print('clean_fuel_price_time_series', clean_fuel_price_time_series.pk)
+
+    # create plant
+    # delete 'user' from plant_definition if exists
+    if 'user' in plant_definition:
+        del plant_definition['user']
+
+    if 'id' in plant_definition:
+        del plant_definition['id']
+
+    # todo: only create if it does not exist already
+    thermal_plant = ThermalPlant.objects.create(user=user, **plant_definition)
+
+    print('thermal_plant', thermal_plant.pk)
+
+    thermal_plant_dispatch_setup = ThermalPlantDispatch.objects.create(
+        user=user,
+        version=version,
+        plant=thermal_plant,
+        wholesale_price=wholesale_price_time_series,
+        clean_fuel_price=clean_fuel_price_time_series,
+        time_series_index=time_series_index,
+    )
+
+    return thermal_plant_dispatch_setup
 
 
 class ThermalPlantDispatch(models.Model):
@@ -280,6 +368,7 @@ class ThermalPlantDispatch(models.Model):
     """
     The setup for a thermal plant dispatch simulation.
     """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     version = models.IntegerField(default=0)
     plant = models.ForeignKey(ThermalPlant, on_delete=models.CASCADE)
     wholesale_price = models.ForeignKey(TimeSeries,
@@ -289,22 +378,28 @@ class ThermalPlantDispatch(models.Model):
                                          on_delete=models.CASCADE,
                                          related_name='dispatch_clean_fuel_price_set')
 
-    # todo: decide if this model also should reference the TimeSeriesIndex (for convenience?)
     time_series_index = models.ForeignKey(TimeSeriesIndex, on_delete=models.CASCADE)
 
-    # todo: make sure that all time series use the same TimeSeriesIndex
-
-    def save(self, *args, **kwargs):
+    def time_series(self):
         """
-
+        Creates one common DataFrame for all data.
         :return:
         """
 
-        # prepare all the foreign relationship if the model is saved the first time
-        print(self.pk)
-        if self.pk is None:
-            print('here')
+        # todo: write test
 
+        # find all TimeSeries fields
+        time_series_fields = []
+        for field in self._meta.get_fields():
+            if isinstance(field, RelatedField):
+                if field.related_model is TimeSeries:   # weirdly isinstance(field.related_model, TimeSeries) doesn't work
+                    time_series_fields.append(field.name)
 
-        # Call the "real" save() method.
-        super().save(*args, **kwargs)
+        # create data frames with indices
+        data = []
+        for field in time_series_fields:
+            data.append(getattr(self, field).to_dataframe())
+
+        # concat dataframes of returned
+        result = pd.concat(data, axis=1)
+        return result

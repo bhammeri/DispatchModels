@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.urls import reverse
 from django.contrib.auth.models import User
 
-from .models import TimeSeries, TimeSeriesIndex, ThermalPlant, CompressedJSONModel, ThermalPlantDispatch
+from .models import TimeSeries, TimeSeriesIndex, ThermalPlant, CompressedJSONModel, ThermalPlantDispatch, create_thermal_plant_dispatch_model
 from .utils import to_dict
 
 
@@ -24,17 +24,30 @@ class ThermalPlantDispatchTests(TestCase):
         user = create_dummy_user()
 
         # create time series data
-        index, wholesale_price, clear_fuel_price = create_dummy_time_series_data(10)
+        index, wholesale_price, clean_fuel_price = create_dummy_time_series_data(10)
 
-        print(index, wholesale_price, clear_fuel_price)
+        print(index, wholesale_price, clean_fuel_price)
 
         # create dummy plant
         plant = create_thermal_plant(user)
+        plant_definition = plant.to_dict()
 
-        # dummy instance
-        model_instance = ThermalPlantDispatch()
+        # create
+        thermal_plant_dispatch_setup = create_thermal_plant_dispatch_model(user,
+                                                                           0,
+                                                                           plant_definition,
+                                                                           index,
+                                                                           wholesale_price,
+                                                                           clean_fuel_price,
+                                                                           pk=None)
 
-        model_instance.time_series_index = [1,2,3,4,5,6]
+        print(to_dict(thermal_plant_dispatch_setup))
+
+        print(thermal_plant_dispatch_setup.time_series())
+
+        print(thermal_plant_dispatch_setup.__data_fields__)
+
+        print(type(thermal_plant_dispatch_setup.clean_fuel_price))
 
 
 class CompressedJSONModelTests(TestCase):
