@@ -16,6 +16,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include, reverse_lazy
 from django.views import generic
+from django.conf.urls.static import static
+from django.conf import settings
 
 urlpatterns = [
     path('', generic.TemplateView.as_view(template_name='index.html'), name='index'),
@@ -23,4 +25,4 @@ urlpatterns = [
     path('dispatch/', include('dispatch.urls')),
     path('accounts/', include('allauth.urls')),
     path('accounts/profile/index', generic.RedirectView.as_view(url=reverse_lazy('index')), name='redirect-to-index')
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) # https://docs.djangoproject.com/en/2.2/howto/static-files/#serving-uploaded-files-in-development

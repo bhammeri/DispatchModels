@@ -1,14 +1,18 @@
 import numpy as np
 import datetime
 import pandas as pd
+import uuid
+import csv
 
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 from django.db.models.fields.related import RelatedField
+from django.core.exceptions import ValidationError
 
 from .fields import CompressedJSONField
 from .utils import to_dict
+
 
 class CompressedJSONModel(models.Model):
     value = CompressedJSONField(null=False, default=b'')
@@ -43,8 +47,10 @@ class ThermalPlant(models.Model):
     cold_start_costs = models.FloatField(blank=False, verbose_name='Costs of Cold Start [EUR/MW]')
 
     # start / stop
-    hot_start_within_timedelta = models.FloatField(blank=False, verbose_name='Start counts as hot start if happening within X hours.')
-    warm_start_within_timedelta = models.FloatField(blank=False, verbose_name='Start counts as warm start if happening within X hours.')
+    hot_start_within_timedelta = models.FloatField(blank=False,
+                                                   verbose_name='Start counts as hot start if happening within X hours.')
+    warm_start_within_timedelta = models.FloatField(blank=False,
+                                                    verbose_name='Start counts as warm start if happening within X hours.')
 
     # derived characteristics
     # implementation as functions?
@@ -133,7 +139,7 @@ class TimeSeriesIndex(models.Model):
 
     def _convert_data_index_to_model(self, index):
         if len(index) == 0:
-            #todo: raise error
+            # todo: raise error
             assert len(index) > 0
 
         def is_integer_index(index):
@@ -206,7 +212,7 @@ class TimeSeriesIndex(models.Model):
 
         index_dict = self._convert_data_index_to_model(index)
 
-        index_dict = {key:value for (key, value) in index_dict.items() if value is not None}
+        index_dict = {key: value for (key, value) in index_dict.items() if value is not None}
 
         # delete None
         try:
@@ -226,13 +232,13 @@ class TimeSeriesIndex(models.Model):
 
 
 class TimeSeries(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE) # reference to creat
-    name = models.CharField(max_length=256) #
-    description = models.TextField(default='') #
+    user = models.ForeignKey(User, on_delete=models.CASCADE)  # reference to creat
+    name = models.CharField(max_length=256)  #
+    description = models.TextField(default='')  #
 
-    index = models.ForeignKey(TimeSeriesIndex, on_delete=models.CASCADE)   # self reference
-    data = CompressedJSONField(null=False, default=b'') # list of values, maybe binary and zipped
-    length = models.IntegerField(null=False, default=0) # store length of data, to be able to easily create index
+    index = models.ForeignKey(TimeSeriesIndex, on_delete=models.CASCADE)  # self reference
+    data = CompressedJSONField(null=False, default=b'')  # list of values, maybe binary and zipped
+    length = models.IntegerField(null=False, default=0)  # store length of data, to be able to easily create index
     unit = models.CharField(max_length=124, default='')
 
     pub_date = models.DateTimeField('date published', auto_now_add=True, null=False)
@@ -283,7 +289,8 @@ class TimeSeries(models.Model):
         return df
 
 
-def create_thermal_plant_dispatch_model(user, version, plant_definition, time_series_index_data, wholesale_price, clean_fuel_price, pk=None):
+def create_thermal_plant_dispatch_model(user, version, plant_definition, time_series_index_data, wholesale_price,
+                                        clean_fuel_price, pk=None):
     """
     Create instance or edit it if pk is provided.
     :param version:
@@ -296,13 +303,14 @@ def create_thermal_plant_dispatch_model(user, version, plant_definition, time_se
     """
     # todo: function needs to be able to receive raw definitions/data or pks of already created objects. create asserts
 
-    assert len(time_series_index_data) == len(wholesale_price) == len(clean_fuel_price), 'Time series data and index must have the same length.'
+    assert len(time_series_index_data) == len(wholesale_price) == len(
+        clean_fuel_price), 'Time series data and index must have the same length.'
 
     if pk is None:
         model_instance = ThermalPlantDispatch()
 
     else:
-        #todo: maybe use get_object_or_404
+        # todo: maybe use get_object_or_404
         model_instance = ThermalPlantDispatch.objects.get(pk=pk)
 
     # create time series index if it doesn't exist already
@@ -392,7 +400,7 @@ class ThermalPlantDispatch(models.Model):
         time_series_fields = []
         for field in self._meta.get_fields():
             if isinstance(field, RelatedField):
-                if field.related_model is TimeSeries:   # weirdly isinstance(field.related_model, TimeSeries) doesn't work
+                if field.related_model is TimeSeries:  # weirdly isinstance(field.related_model, TimeSeries) doesn't work
                     time_series_fields.append(field.name)
 
         # create data frames with indices
@@ -403,3 +411,63 @@ class ThermalPlantDispatch(models.Model):
         # concat dataframes of returned
         result = pd.concat(data, axis=1)
         return result
+
+
+def unique_filename_user_directory(instance, filename):
+    """
+    Creates a unique filename using uuid and stores it into a user folder.
+    File will be uploaded to MEDIA_ROOT/user_<id>/<filename>
+    :param instance:
+    :param filename:
+    :return:
+    """
+
+    # get file extension
+    # todo: field validation must ensure that there is a .csv
+    filename, file_ext = filename.rsplit('.', 1)
+
+    # create new unique filename
+    filename = 'user_{user_id}/{filename}_{uuid}.{ext}'.format(user_id=instance.user.id,
+                                                               filename=filename,
+                                                               uuid=uuid.uuid4(),
+                                                               ext=file_ext)
+
+    return filename
+
+
+def csv_validator(file):
+    """
+    Checks if the uploaded file is a csv file and has a header (single row) using
+    the Sniffer class from the Python csv module.
+    :param file:
+    :return:
+    """
+
+    csv_sniffer = csv.Sniffer()
+
+    # read data and try to convert to string
+    data = file.read(1024)
+
+    try:
+        data = data.decode(encoding='utf-8')
+    except UnicodeDecodeError:
+        raise ValidationError(_('File is either not a valid CSV or not encoded as UTF-8.'))
+
+    try:
+        dialect = csv_sniffer.sniff(data)
+    except csv.Error:
+        raise ValidationError(_('File is not a valid CSV file.'))
+
+    has_header = csv_sniffer.has_header(data)
+    if not has_header:
+        raise ValidationError(_('CSV File has no header.'))
+
+    # todo: check for actual column header names. write a class similar to https://stackoverflow.com/questions/20272579/django-validate-file-type-of-uploaded-file/27916582#27916582
+
+
+class CSVFileUpload(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    upload_date = models.DateTimeField(auto_created=True, auto_now_add=True)
+    file = models.FileField(upload_to=unique_filename_user_directory,
+                            validators=[csv_validator])
+
