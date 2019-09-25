@@ -261,7 +261,7 @@ def optimize(plant, time_stamp, power_price, fuel_price):
     opt = SolverFactory('cbc') #options: 'couenne' for MINLP, 'glpk' or 'cbc' for MILP 
     result = opt.solve(model, tee=True)
     
-    return {"model":model, "result":result}
+    return {"model": model, "result": result}
     
 
 myPlant = plant(MW_installed        = 100.00,
