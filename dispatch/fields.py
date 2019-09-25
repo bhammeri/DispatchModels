@@ -11,6 +11,7 @@ def compress_serialize(value, compresslevel=9):
     :param value:
     :return:
     """
+    print(value, type(value), type(value[0]))
     value = json.dumps(value)
     value = value.encode(encoding='UTF-8', errors='strict')
     value = gzip.compress(value, compresslevel=compresslevel)

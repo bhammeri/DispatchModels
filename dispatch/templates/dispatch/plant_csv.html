@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% load bootstrap4 %}
+
+{% block title %} Create plant and upload CSV file {% endblock %}
+
+{% block content %}
+
+    <div class="starter-template col-sm-8">
+
+        {% if csv_form.errors %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <div class="alert alert-danger">
+                        <strong>{{ error|escape }}</strong>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <strong>{{ error|escape }}</strong>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if plant_form.errors %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <div class="alert alert-danger">
+                        <strong>{{ error|escape }}</strong>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <div class="alert alert-danger">
+                    <strong>{{ error|escape }}</strong>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data">
+            {%  csrf_token %}
+            {% bootstrap_form csv_form layout='horizontal' %}
+            {% bootstrap_form plant_form layout='horizontal' %}
+            <input type="submit" value="Create">
+        </form>
+
+    </div>
+
+{% endblock %}

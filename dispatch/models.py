@@ -9,6 +9,7 @@ from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 from django.db.models.fields.related import RelatedField
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 from .fields import CompressedJSONField
 from .utils import to_dict
@@ -21,11 +22,15 @@ class CompressedJSONModel(models.Model):
 # Create your models here.
 class ThermalPlant(models.Model):
     # todo: toask: What does BSE, RMP, NRM, UPwarm, depreciation ... stand for?
+    # todo: validation of fields: >0, <1, MEL > SEL (form validation)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(blank=False, max_length=256, default='Plant', verbose_name='Plant name')
+    pub_date = models.DateTimeField(auto_now_add=True)
+    last_altered = models.DateTimeField(auto_now=True)
 
     # production
-    capacity = models.FloatField(blank=False, verbose_name='Capacity [MW]')
-    efficiency = models.FloatField(blank=False, verbose_name='Efficiency [0-1]')
+    capacity = models.FloatField(blank=False, verbose_name='Capacity [MW]', validators=[MinValueValidator(0)])
+    efficiency = models.FloatField(blank=False, verbose_name='Efficiency [0-1]', validators=[MinValueValidator(0), MaxValueValidator(1)])
     MIN_prod_fraction = models.FloatField(blank=False, verbose_name='Minimal production fraction [0-1]')
     SEL_prod_fraction = models.FloatField(blank=False, verbose_name='Stable Export Limit production fraction [0-1]')
     MEL_prod_fraction = models.FloatField(blank=False, verbose_name='Maximal Export Limit production fraction [0-1]')
@@ -40,7 +45,7 @@ class ThermalPlant(models.Model):
     ramping_costs_NRM = models.FloatField(blank=False, verbose_name='Ramping Costs NRM [0-1]')
 
     # costs
-    depreciation = models.FloatField(blank=False, verbose_name='???')
+    depreciation = models.FloatField(blank=False, verbose_name='Depreciation [EUR/MW]')
     shutdown_costs = models.FloatField(blank=False, verbose_name='Costs of Shutdown [EUR/MW]')
     hot_start_costs = models.FloatField(blank=False, verbose_name='Costs of Hot Start [EUR/MW]')
     warm_start_costs = models.FloatField(blank=False, verbose_name='Costs of Warm Start [EUR/MW]')
@@ -95,6 +100,9 @@ class ThermalPlant(models.Model):
     def to_dict(self):
         return to_dict(self)
 
+    def __str__(self):
+        return self.name
+
 
 class TimeSeriesIndex(models.Model):
     """
@@ -143,7 +151,7 @@ class TimeSeriesIndex(models.Model):
             assert len(index) > 0
 
         def is_integer_index(index):
-            return type(index[0]) == int
+            return (type(index[0]) == int) or (type(index[0]) == np.int64)
 
         def is_datetime_index(index):
             return (type(index[0]) == datetime.datetime) or (type(index[0]) == np.datetime64)
@@ -193,6 +201,8 @@ class TimeSeriesIndex(models.Model):
 
         index_dict = self._convert_data_index_to_model(index)
 
+        print('index_dict', index, index_dict)
+
         self.index_type = index_dict['index_type']
         if index_dict['index_type'] == 1:
             self.integer_offset = index_dict['integer_offset']
@@ -224,6 +234,8 @@ class TimeSeriesIndex(models.Model):
 
     def create_if_not_exists(self, index):
         result = self.does_exist(index)
+
+        print('does_exist', result)
 
         if result is not None:
             return result
@@ -463,11 +475,44 @@ def csv_validator(file):
         raise ValidationError(_('CSV File has no header.'))
 
     # todo: check for actual column header names. write a class similar to https://stackoverflow.com/questions/20272579/django-validate-file-type-of-uploaded-file/27916582#27916582
+    # reset read position of file
+    file.seek(0)
+    df = pd.read_csv(file, dialect=dialect, encoding='utf-8', header=[0], nrows=10)
+
+    file.seek(0)
+    # create a set of header columns and check if all necessary headers exist
+    headers = set(df.columns)
+
+    _specified_headers = ['index', 'wholesale_price', 'clean_fuel_price']
+
+    for header in _specified_headers:
+        if header not in headers:
+            raise ValidationError(_('TimeSeries must contain the following columns: index, wholesale_price, clean_fuel_price'))
 
 
 class CSVFileUpload(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     upload_date = models.DateTimeField(auto_created=True, auto_now_add=True)
     file = models.FileField(upload_to=unique_filename_user_directory,
-                            validators=[csv_validator])
+                            validators=[csv_validator],
+                            verbose_name='Time series CSV')
+    # todo: create delimiter on save
+    # delimiter = models.CharField(blank=False, max_length=2, default=',', verbose_name='Delimiter')
+
+    def to_dataframe(self):
+        # set pointer to beginning of file
+        self.file.seek(0)
+
+        # find csv dialect
+        data = self.file.read(1024)
+
+        data = data.decode(encoding='utf-8')
+
+        csv_sniffer = csv.Sniffer()
+
+        dialect = csv_sniffer.sniff(data)
+
+        self.file.seek(0)
+
+        return pd.read_csv(self.file, dialect=dialect)
 

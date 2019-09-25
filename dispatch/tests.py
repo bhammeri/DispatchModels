@@ -45,8 +45,6 @@ class ThermalPlantDispatchTests(TestCase):
 
         print(thermal_plant_dispatch_setup.time_series())
 
-        print(thermal_plant_dispatch_setup.__data_fields__)
-
         print(type(thermal_plant_dispatch_setup.clean_fuel_price))
 
 

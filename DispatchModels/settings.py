@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'bootstrap4',
+    'crispy_forms',
     'dispatch',
 ]
 
@@ -161,3 +162,6 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # Allauth Account settings
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+
+# Crispy Forms
+CRISPY_TEMPLATE_PACK = 'bootstrap4'
