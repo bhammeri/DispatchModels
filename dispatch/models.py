@@ -518,3 +518,38 @@ class CSVFileUpload(models.Model):
 
         return pd.read_csv(self.file, dialect=dialect)
 
+
+class ThermalPlantOptimizationRun(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    dispatch_model = models.ForeignKey(ThermalPlantDispatch, on_delete=models.CASCADE)
+    started = models.DateTimeField(auto_now_add=True)
+    simulation_time = models.IntegerField(null=True, verbose_name="Simulation time [s]")
+
+    # configuration
+    start = models.IntegerField(null=True, verbose_name="Offset for optimization run.")
+    end = models.IntegerField(null=True, verbose_name="End of optimization run.")
+    number_of_batches = models.IntegerField(null=True, verbose_name="Number of batches.")
+    overlap = models.FloatField(null=True, verbose_name="Overlap between batches.")
+
+
+class ThermalPlantOptimizationResult(models.Model):
+    run = models.ForeignKey(ThermalPlantOptimizationRun, on_delete=models.CASCADE)
+
+    # output fields
+    production = models.FloatField(blank=False, verbose_name="Production [MWh]")
+    consumption = models.FloatField(blank=False, verbose_name="Consumption [MWh]")
+
+    ramping_BSE = models.FloatField(blank=False, verbose_name="Production during BSE ramping [MWh]")
+
+    # input fields
+    power_price = models.FloatField(blank=False, verbose_name="Wholesale power price [EUR/MWh]")
+    fuel_price = models.FloatField(blank=False, verbose_name="Clean fuel price [EUR/MWh]")
+
+    # todo: ask for definitions and expected values
+    """
+    ['production', 'consumption', 'powerProdBSE', 'powerProdRMP',
+     'powerProdNRM', 'ONF', 'RMP', 'NRM', 'powerProdBSE_UP',
+     'powerProdBSE_DW', 'powerProdRMP_UP', 'powerProdRMP_DW',
+     'powerProdNRM_UP', 'powerProdNRM_DW', 'fuelCosts', 'rampingCosts',
+     'depriciationCosts', 'Revenues', 'Costs', 'power_price', 'fuel_price']
+    """

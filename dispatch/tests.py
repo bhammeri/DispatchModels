@@ -41,6 +41,7 @@ class ThermalPlantDispatchOptimizationModelTests(TestCase):
         result = opt_model.optimize()
 
         print(result)
+        print(result.columns)
 
     def test_optmiziation_batch(self):
         """
@@ -63,6 +64,32 @@ class ThermalPlantDispatchOptimizationModelTests(TestCase):
         result = opt_model.optimize(number_of_batches=2)
 
         print(result)
+
+    def test_ramping(self):
+        index_0, wholesale_price_0, clean_fuel_price_0 = create_dummy_time_series_data(24, price_avg=55, fuel_price_avg=20)
+        index_1, wholesale_price_1, clean_fuel_price_1 = create_dummy_time_series_data(24, price_avg=30,fuel_price_avg=20)
+
+        index = [i for i in range(3*len(index_0))]
+        wholesale_price = wholesale_price_0 + wholesale_price_1 + wholesale_price_0
+        clean_fuel_price = clean_fuel_price_0 + clean_fuel_price_1 + clean_fuel_price_0
+
+        df = pd.DataFrame({'index': index, 'wholesale_price': wholesale_price, 'clean_fuel_price': clean_fuel_price})
+        df.set_index('index', inplace=True)
+
+        # setup a plant
+        user = create_dummy_user()
+        plant = create_thermal_plant(user)
+        plant_definition = plant.to_dict()
+
+        # create ThermalPlantDispatchOptimizationModel instance
+        opt_model = ThermalPlantDispatchOptimizationModel(plant_definition, df)
+
+        result = opt_model.optimize()
+
+        print(result)
+        print(result.columns)
+        for value in result.production:
+            print(value)
 
 
 class ThermalPlantDispatchTests(TestCase):

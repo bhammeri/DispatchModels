@@ -165,7 +165,7 @@ class ThermalPlantDispatchOptimizationModel(object):
             else:
                 return (model.powerProdRMP[t] - model.powerProdRMP[t - 1]
                         <=
-                        + plant['ramping_rate_RMP'])
+                        + plant['ramping_rate_RMP_MW'])
 
         self._model.RMP_UP = Constraint(self._model.T, rule=RMP_constraint_up)
 
@@ -175,7 +175,7 @@ class ThermalPlantDispatchOptimizationModel(object):
             else:
                 return (model.powerProdRMP[t] - model.powerProdRMP[t - 1]
                         >=
-                        - plant['ramping_rate_RMP'])
+                        - plant['ramping_rate_RMP_MW'])
 
         self._model.RMP_DW = Constraint(self._model.T, rule=RMP_constraint_down)
 
@@ -185,7 +185,7 @@ class ThermalPlantDispatchOptimizationModel(object):
             else:
                 return (model.powerProdNRM[t] - model.powerProdNRM[t - 1]
                         <=
-                        + plant['ramping_rate_NRM'])
+                        + plant['ramping_rate_NRM_MW'])
 
         self._model.NRM_UP = Constraint(self._model.T, rule=NRM_constraint_up)
 
@@ -195,7 +195,7 @@ class ThermalPlantDispatchOptimizationModel(object):
             else:
                 return (model.powerProdNRM[t] - model.powerProdNRM[t - 1]
                         >=
-                        - plant['ramping_rate_NRM'])
+                        - plant['ramping_rate_NRM_MW'])
 
         self._model.NRM_DW = Constraint(self._model.T, rule=NRM_constraint_down)
 
