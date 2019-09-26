@@ -16,16 +16,19 @@ class ThermalPlantDispatchOptimizationModel(object):
         self._input_data = time_series
         self._model = None
         self._optimization = None
+        self._result = None
 
     def to_dataframe(self):
         return convert_model_result_to_dataframe(self._model)
 
-    def optimize(self, start=None, end=None, increment=None):
+    def optimize(self, start=None, end=None, number_of_batches=None, overlap=0.25):
         """
         Only allows for integer ranges (at the moment).
-        :param start:
-        :param end:
-        :param increment:
+        :param overlap: (NOT IMPLEMENTED) If interval is optimized in batches, the overlap parameter defines how much
+        overlap between batches is simulated to ease the boundary conditions for each batch.
+        :param number_of_batches: The number of batches the given interal is split into.
+        :param start: Offset for the given interval.
+        :param end: End of the given interval
         :return:
         """
         # todo: increment must be changed to "number_of_batches" and then the setup of boundary condition must be met
@@ -38,15 +41,21 @@ class ThermalPlantDispatchOptimizationModel(object):
         if end:
             assert end < len(self._input_data), 'End must be smaller than length of data provided.'
         else:
-            end = len(self._input_data)-1
+            end = len(self._input_data)
 
-        if increment:
-            assert increment < end - start, 'Increment must be smaller than range provided.'
-        else:
-            increment = end-start
+        # setup variables for iteration
+        increment = end-start
+
+        if number_of_batches:
+            increment = int(increment / number_of_batches)
+
+        assert increment > 12, 'Each batch needs to be at least 12 data points.'
+
+        # set overlap to nearest smaller integer
+        overlap = int(overlap * increment)
 
         # todo: setup model and solve
-        result = pd.DataFrame()
+        self._result = pd.DataFrame()
         for i in range(start, end, increment):
             slice_begin = i*start
             slice_end = (i+1)*end
@@ -54,19 +63,24 @@ class ThermalPlantDispatchOptimizationModel(object):
             if slice_end > end:
                 slice_end = end
 
-            data_slice = self._data.iloc[slice_begin, slice_end]
+            data_slice = self._input_data.iloc[slice_begin:slice_end]
 
+            # create input data series for the optimization function
+            # optimization functions needs a list of time indices
+            # and dictionaries for the time series where the keys are the time indices and value the price values
             index = data_slice.index.tolist()
-            wholesale_price = data_slice['wholesale_price'].tolist()
-            clean_fuel_price = data_slice['clean_fuel_price'].tolist()
+            wholesale_price = data_slice['wholesale_price'].to_dict()
+            clean_fuel_price = data_slice['clean_fuel_price'].to_dict()
 
-            self._setup_optimization(self._plant, index, wholesale_price, clean_fuel_price)
+            # setup the optimization and optimize
+            self._setup_optimization(self._plant_definition, index, wholesale_price, clean_fuel_price)
             self._optimize()
-            result_df = self.to_dataframe()
+            iteration_result = self.to_dataframe()
 
-        df = append_result_to_df(result, result_df)
+            # add result to dataframe
+            self._result = append_result_to_df(self._result, iteration_result)
 
-    return result
+        return self._result
 
     def _optimize(self):
         """
@@ -85,8 +99,8 @@ class ThermalPlantDispatchOptimizationModel(object):
 
         :param plant: Dictionary of plant definition
         :param time_series_index: List of index values (integer or time stamps)
-        :param wholesale_price: List of values [EUR/MWh]
-        :param clean_fuel_price: List of values [EUR/MWh_therm]
+        :param wholesale_price: dictionary key=time_series_index, value=price value in [EUR/MWh]
+        :param clean_fuel_price: dictionary key=time_series_index, value=price value in [EUR/MWh]
         :return:
         """
 
@@ -237,9 +251,9 @@ class ThermalPlantDispatchOptimizationModel(object):
         def rampingCosts(model, i):
             return (model.rampingCosts[i]
                     ==
-                    + (model.powerProdBSE_UP[i] + model.powerProdBSE_DW[i]) * plant['ramping_cost_BSE']
-                    + (model.powerProdRMP_UP[i] + model.powerProdRMP_DW[i]) * plant['ramping_cost_RMP']
-                    + (model.powerProdNRM_UP[i] + model.powerProdNRM_DW[i]) * plant['ramping_cost_NRM'])
+                    + (model.powerProdBSE_UP[i] + model.powerProdBSE_DW[i]) * plant['ramping_costs_BSE']
+                    + (model.powerProdRMP_UP[i] + model.powerProdRMP_DW[i]) * plant['ramping_costs_RMP']
+                    + (model.powerProdNRM_UP[i] + model.powerProdNRM_DW[i]) * plant['ramping_costs_NRM'])
 
         self._model.rampingCosts_def = Constraint(self._model.T, rule=rampingCosts)
 
@@ -248,7 +262,7 @@ class ThermalPlantDispatchOptimizationModel(object):
         def depriciationCosts(model, i):
             return (model.depriciationCosts[i]
                     ==
-                    + (model.ONF[i] - model.NRM[i]) * plant['depriciation']) # todo: ask if in MW or fraction
+                    + (model.ONF[i] - model.NRM[i]) * plant['depreciation']) # todo: ask if in MW or fraction
 
         self._model.depriciationCosts_def = Constraint(self._model.T, rule=depriciationCosts)
 

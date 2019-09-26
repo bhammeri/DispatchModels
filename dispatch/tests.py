@@ -1,5 +1,6 @@
 import datetime
 import numpy as np
+import pandas as pd
 
 from django.test import TestCase
 from django.utils import timezone
@@ -8,14 +9,60 @@ from django.contrib.auth.models import User
 
 from .models import TimeSeries, TimeSeriesIndex, ThermalPlant, CompressedJSONModel, ThermalPlantDispatch, create_thermal_plant_dispatch_model
 from .utils import to_dict
+from .dispatch_models.thermal_plant_v0 import ThermalPlantDispatchOptimizationModel
 
-
-def create_dummy_time_series_data(length):
+def create_dummy_time_series_data(length, price_avg=55, fuel_price_avg=24):
     index = [item for item in range(length)]
-    price = list(15+7*np.random.rand(length))
-    clear_fuel_price = list(30+7*np.random.rand(length))
+    price = list(price_avg+7*np.random.rand(length))
+    clear_fuel_price = list(fuel_price_avg+7*np.random.rand(length))
 
     return index, price, clear_fuel_price
+
+
+class ThermalPlantDispatchOptimizationModelTests(TestCase):
+    def test_optmiziation(self):
+        """
+        Test simple optimization where the whole time interval is optimized in one step.
+        :return:
+        """
+        index, wholesale_price, clear_fuel_price = create_dummy_time_series_data(24)
+
+        df = pd.DataFrame({'index': index, 'wholesale_price': wholesale_price, 'clean_fuel_price': clear_fuel_price})
+        df.set_index('index', inplace=True)
+
+        # setup a plant
+        user = create_dummy_user()
+        plant = create_thermal_plant(user)
+        plant_definition = plant.to_dict()
+
+        # create ThermalPlantDispatchOptimizationModel instance
+        opt_model = ThermalPlantDispatchOptimizationModel(plant_definition, df)
+
+        result = opt_model.optimize()
+
+        print(result)
+
+    def test_optmiziation_batch(self):
+        """
+        Test optimization in batches. Overlap is not implemented yet.
+        :return:
+        """
+        index, wholesale_price, clear_fuel_price = create_dummy_time_series_data(48)
+
+        df = pd.DataFrame({'index': index, 'wholesale_price': wholesale_price, 'clean_fuel_price': clear_fuel_price})
+        df.set_index('index', inplace=True)
+
+        # setup a plant
+        user = create_dummy_user()
+        plant = create_thermal_plant(user)
+        plant_definition = plant.to_dict()
+
+        # create ThermalPlantDispatchOptimizationModel instance
+        opt_model = ThermalPlantDispatchOptimizationModel(plant_definition, df)
+
+        result = opt_model.optimize(number_of_batches=2)
+
+        print(result)
 
 
 class ThermalPlantDispatchTests(TestCase):

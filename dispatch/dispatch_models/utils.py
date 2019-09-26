@@ -24,11 +24,17 @@ def convert_model_result_to_dataframe(model):
     # add results of variables, parameters to data frame
     for component_type in [Var, Param]:
         for component in model.component_objects(component_type, active=True):
-            # use a dict to create a series from (index, value) pairs returned by var
-            s = pd.Series({key: value.value for key, value in component.items()}, name=component.name)
-            result.append(s)
+            try:
+                # use a dict to create a series from (index, value) pairs returned by var
+                s = pd.Series({key: value.value for key, value in component.items()}, name=component.name)
+                result.append(s)
+            except:
+                # Params are directly values
+                # use a dict to create a series from (index, value) pairs returned by var
+                s = pd.Series({key: value for key, value in component.items()}, name=component.name)
+                result.append(s)
 
-    df = pd.concat(result, axis=1)
+    result = pd.concat(result, axis=1)
 
     return result
 

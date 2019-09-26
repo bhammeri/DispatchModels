@@ -98,7 +98,9 @@ class ThermalPlant(models.Model):
         super().save(*args, **kwargs)
 
     def to_dict(self):
-        return to_dict(self)
+        result = to_dict(self)
+
+        return result
 
     def __str__(self):
         return self.name
