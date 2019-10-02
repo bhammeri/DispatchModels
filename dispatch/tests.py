@@ -25,7 +25,7 @@ class ThermalPlantDispatchOptimizationModelTests(TestCase):
         Test simple optimization where the whole time interval is optimized in one step.
         :return:
         """
-        index, wholesale_price, clear_fuel_price = create_dummy_time_series_data(24)
+        index, wholesale_price, clear_fuel_price = create_dummy_time_series_data(48, price_avg=100, fuel_price_avg=10)
 
         df = pd.DataFrame({'index': index, 'wholesale_price': wholesale_price, 'clean_fuel_price': clear_fuel_price})
         df.set_index('index', inplace=True)
@@ -67,7 +67,7 @@ class ThermalPlantDispatchOptimizationModelTests(TestCase):
 
     def test_ramping(self):
         index_0, wholesale_price_0, clean_fuel_price_0 = create_dummy_time_series_data(24, price_avg=55, fuel_price_avg=20)
-        index_1, wholesale_price_1, clean_fuel_price_1 = create_dummy_time_series_data(24, price_avg=30,fuel_price_avg=20)
+        index_1, wholesale_price_1, clean_fuel_price_1 = create_dummy_time_series_data(24, price_avg=30, fuel_price_avg=20)
 
         index = [i for i in range(3*len(index_0))]
         wholesale_price = wholesale_price_0 + wholesale_price_1 + wholesale_price_0
@@ -144,9 +144,9 @@ def create_thermal_plant(user):
          'MIN_prod_fraction': 0.2,
          'SEL_prod_fraction': 0.8,
          'MEL_prod_fraction': 1.0,
-         'ramping_rate_BSE': 0,
-         'ramping_rate_RMP': 0.025,
-         'ramping_rate_NRM': 0.1,
+         'ramping_rate_BSE': 0.10,
+         'ramping_rate_RMP': 0.10,
+         'ramping_rate_NRM': 0.10,
          'ramping_costs_BSE': 30,
          'ramping_costs_RMP': 25,
          'ramping_costs_NRM': 20,

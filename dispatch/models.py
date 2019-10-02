@@ -125,6 +125,7 @@ class TimeSeriesIndex(models.Model):
 
     # integer index
     integer_offset = models.IntegerField(null=True, default=0)  # integer offset
+    # todo: Do we need an increment if integer steps are not 1?
 
     # constraints: make sure that interval is positive
 

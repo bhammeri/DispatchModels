@@ -114,12 +114,24 @@ class ThermalPlantDispatchOptimizationModel(object):
         self._model.fuel_price = Param(self._model.T, initialize=clean_fuel_price)
 
         self._model.production = Var(self._model.T, within=NonNegativeReals)
+
+        # todo: find out how to set single constraint instead of Constraint(iterable, rule=func)
+        # todo: write method to handle the creation of initial condition
+        def initial_condition(model, t):
+            if t == 0:
+                return model.production[t] == 42.0
+            else:
+                return Constraint.Skip
+
+        self._model.production_initial_condition = Constraint(self._model.T, rule=initial_condition)
+
         self._model.consumption = Var(self._model.T, within=NonNegativeReals)
 
         self._model.powerProdBSE = Var(self._model.T, within=NonNegativeReals)
         self._model.powerProdRMP = Var(self._model.T, within=NonNegativeReals)
         self._model.powerProdNRM = Var(self._model.T, within=NonNegativeReals)
 
+        # in which state the plant is at the current time step
         self._model.ONF = Var(self._model.T, within=Binary)
         self._model.RMP = Var(self._model.T, within=Binary)
         self._model.NRM = Var(self._model.T, within=Binary)
